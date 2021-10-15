@@ -47,8 +47,13 @@ def get_img(name):
             if card.find('span', {'class', 'card-grid-item-invisible-label'}).get_text().lower() == name.lower():
                 soup = get_page(card['href'])
                 card_image_div = soup.find('div', {'class', 'card-image-front'})
-    
+    if not card_image_div:
+        print(f'could not find card_image_div for {name}')
+        return
     img_sec = card_image_div.find('img')
+    if not img_sec:
+        print(f'could not find img_sec for {name}')
+        return
     img_src = img_sec.attrs['src']
 
     sanitized_name = ''.join(name.split()).replace('.', '').replace(',', '')
