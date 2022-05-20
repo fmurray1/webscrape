@@ -1,8 +1,9 @@
 
+from typing import Tuple
 import requests
 import click
 
-from os import walk, pardir
+from os import walk, pardir, path
 from bs4 import BeautifulSoup
 from reportlab.lib.pagesizes import LEGAL
 from reportlab.lib.units import inch
@@ -27,40 +28,19 @@ def main(card_path, deck_name):
             #print(f'Getting img for {line}')
             line = line.strip()
             if line:
-                get_img(line)
+                get_images_for_card(line)
     
-    make_pdf(card_path, deck_name)
+    make_pdf(deck_name)
 
 
-def get_page(url):
+def get_page(url) -> None:
     response = requests.get(url)
     return BeautifulSoup(response.text, 'html.parser')
 
-def get_img(name):
+def download_img_to_file(name, img_src):
     global successful_images
-    
-    soup = get_page(URL+f'"{name}"')
-    card_image_div = soup.find('div', {'class', 'card-image-front'})
-    if not card_image_div:
-        cards = soup.findAll('a', {'class', 'card-grid-item-card'})
-        for card in cards:
-            if card.find('span', {'class', 'card-grid-item-invisible-label'}).get_text().lower() == name.lower():
-                soup = get_page(card['href'])
-                card_image_div = soup.find('div', {'class', 'card-image-front'})
-    if not card_image_div:
-        print(f'could not find card_image_div for {name}')
-        return
-    img_sec = card_image_div.find('img')
-    if not img_sec:
-        print(f'could not find img_sec for {name}')
-        return
-    img_src = img_sec.attrs['src']
 
     sanitized_name = ''.join(name.split()).replace('.', '').replace(',', '')
-
-    if not img_src:
-        print(f'could not find img_src for {name}')
-        return
 
     img_response = requests.get(img_src)
 
@@ -73,8 +53,43 @@ def get_img(name):
 
     successful_images.append(sanitized_name+'.jpg')
 
-def make_pdf(path, deck_name):
+def get_img_src(name, class_name):
+    soup = get_page(URL+f'"{name}"')
+    card_image_div = soup.find('div', {'class', class_name})
+    if not card_image_div:
+        cards = soup.findAll('a', {'class', class_name})
+        for card in cards:
+            if card.find('span', {'class', 'card-grid-item-invisible-label'}).get_text().lower() == name.lower():
+                soup = get_page(card['href'])
+                card_image_div = soup.find('div', {'class', class_name})
+    if not card_image_div:
+        print(f'could not find card_image_div for {name}')
+        return None
+    img_sec = card_image_div.find('img')
+    if not img_sec:
+        print(f'could not find img_sec for {name}')
+        return None
+    img_src = img_sec.attrs['src']
 
+    if not img_src:
+        print(f'could not find img_src for {name}:{class_name}')
+        return None
+    return img_src
+
+def get_image_front(name):
+    return get_img_src(name, 'card-image-front')
+def get_image_back(name):
+    return get_img_src(name, 'card-image-back')
+
+def get_images_for_card(name):
+    front_src = get_image_front(name)
+    back_src = get_image_back(name)
+    if back_src is not None:
+        download_img_to_file(name+"_back", back_src)
+    download_img_to_file(name, front_src)
+    
+def make_pdf(deck_name):
+    global successful_images
     c = Canvas(f'{deck_name}.pdf', pagesize=LEGAL)
     num_pages =  ceil(len(successful_images)/9)
     if num_pages <= 0:
